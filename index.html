@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+    <meta charset="UTF-8">
+    <title>Arb Claim</title>
+
+    <style type="text/css">
+        body {
+            height: 200px;
+            width: 80%;
+        }
+    </style>
+
+    <script type="application/javascript">
+
+        let signer = null;
+        let walletAddress = null;
+        let provider = null;
+        let contract_address = "0x67a24ce4321ab3af51c2d0a4801c3e111d88c9d9";
+        async function initProvider() {
+            if (provider == null) {
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                console.log("initProvider", provider);
+                await provider.getBlock("latest").then(async (block) => {
+                    console.log("blockNumber", block.number);
+                    console.log("blockTimestamp", block.timestamp);
+                });
+            } else {
+                console.log("getProvider", provider);
+            }
+            return provider;
+        }
+
+        async function connectWallet() {
+            if (provider == null) {
+                await initProvider();
+            }
+
+            if (walletAddress) {
+                return;
+            }
+
+            await window.ethereum.request({ method: 'eth_requestAccounts' })
+            signer = await provider.getSigner();
+            walletAddress = await signer.getAddress();
+            console.log("connectWallet", "signer", walletAddress);
+            return walletAddress;
+        }
+
+        async function getBalance() {
+            await connectWallet();
+            let balance;
+            let balanceHTML;
+            let abi = [
+                "function balanceOf(address account) external view returns (uint256) ",
+                "function symbol() external view returns (string) ",
+                "function decimals() external view returns (uint8) ",
+            ];
+            let Contract = new ethers.Contract("0x912ce59144191c1204e64559fe8253a0e49e6548", abi, provider);
+            let decimals = await Contract.decimals();
+            balance = ethers.utils.formatUnits(await Contract.balanceOf(walletAddress), decimals);
+            let symbol = await Contract.symbol();
+            balanceHTML = balance + " " + symbol;
+            document.getElementById('balance').innerText = balanceHTML;
+        }
+
+        function claim() {
+            let abi = [
+                "function claim()",
+            ];
+            let provider = new ethers.providers.JsonRpcProvider("https://rpc.ankr.com/arbitrum");
+            let Contract = new ethers.Contract("0x67a24ce4321ab3af51c2d0a4801c3e111d88c9d9", abi, provider);
+            Contract.connect(signer).claim().then(async (tx) => {
+                console.log(tx.hash);
+                await tx.wait().then(async (receipt) => {
+                    alert("claim success");
+                    console.log(receipt.status);
+                });
+            }).catch((error) => {
+                document.getElementById('console').innerHTML = "Claim失败" + "<p>" + JSON.stringify(error.data);
+            });
+        }
+
+    </script>
+
+</head>
+
+<body>
+    <h1>Arb Claim</h1>
+    <p>钱包地址：<a id="wallet_address"></a></p>
+    <button onclick="connectWallet()">连接钱包</button>
+    <a> <span id="balance"></span></button>
+
+        <p>
+
+            <button onclick="claim()">
+                <h3>Claim</h3>
+            </button>
+            <p>
+            <h3>By XY</h3>
+        </p>
+        <p> <span id="console"></span></p>
+
+        <script>
+
+            window.onload = async () => {
+                if (window.ethereum === undefined) {
+                    console.log('请使用区块链浏览器访问');
+                    return false;
+                }
+
+                if (provider == null) {
+                    await initProvider();
+                }
+
+                if (provider.provider.selectedAddress) {
+                    await connectWallet();
+                    console.log("window.onload", provider.provider.selectedAddress);
+                }
+                await getBalance();
+                document.getElementById('wallet_address').innerText = walletAddress;
+            };
+        </script>
+</body>
+
+</html>
